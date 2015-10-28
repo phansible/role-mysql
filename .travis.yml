@@ -6,9 +6,6 @@ env:
   - PLAYBOOK=test.yml
 
 before_install:
-  # Ensure that packages are up to date
-  - sudo apt-get update -qq
-
   # Remove any MySQL package to ensure a clean starting state
   - sudo apt-get remove --purge 'mysql*'
   - sudo apt-get autoremove
