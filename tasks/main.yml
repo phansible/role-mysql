@@ -3,6 +3,10 @@
 - shell: hostname
   register: current_hostname
 
+- name: Ensure packages database is up to date
+  sudo: yes
+  apt: update_cache=yes
+
 - name: Install MySQL Packages
   sudo: yes
   apt: pkg={{ item }} state=latest
