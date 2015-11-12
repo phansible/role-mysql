@@ -1,6 +1,6 @@
 ---
 mysql:
-    root_password: verySecurePassword
+    root_password: root
     database: phansible
     user: changme
     password: changme
