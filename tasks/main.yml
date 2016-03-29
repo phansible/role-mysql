@@ -5,11 +5,11 @@
   register: current_hostname
 
 - name: Ensure packages database is up to date
-  sudo: yes
+  become: yes
   apt: update_cache=yes
 
 - name: Install MySQL Packages
-  sudo: yes
+  become: yes
   apt: pkg={{ item }} state=latest
   with_items:
     - mysql-server
