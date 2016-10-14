@@ -26,13 +26,13 @@
 
 - name: Create databases
   mysql_db: name={{ item.database }} state=present login_user=root login_password={{ mysql.root_password }}
-  when: item.database is defined
+  when: item.database
   with_items:
     - "{{ mysql.databases }}"
 
 - name: Import dump
   mysql_db: name={{ item.database }} state=import login_user=root login_password={{ mysql.root_password }} target=/vagrant/{{ item.dump }}
-  when: item.database is defined and item.dump is defined
+  when: item.database and item.dump
   with_items:
     - "{{ mysql.databases }}"
 
