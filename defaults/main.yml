@@ -1,7 +1,8 @@
 ---
 mysql:
     root_password: root
-    database: phansible
     user: changme
     password: changme
-    dump: ""
+    databases:
+      - database: phansible
+        dump: ""

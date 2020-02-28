@@ -25,11 +25,16 @@
     - localhost
 
 - name: Create databases
-  mysql_db: name={{ mysql.database }} state=present login_user=root login_password={{ mysql.root_password }}
+  mysql_db: name={{ item.database }} state=present login_user=root login_password={{ mysql.root_password }}
+  when: item.database
+  with_items:
+    - "{{ mysql.databases }}"
 
 - name: Import dump
-  mysql_db: name={{ mysql.database }} state=import login_user=root login_password={{ mysql.root_password }} target=/vagrant/{{ mysql.dump }}
-  when: mysql.dump
+  mysql_db: name={{ item.database }} state=import login_user=root login_password={{ mysql.root_password }} target=/vagrant/{{ item.dump }}
+  when: item.database and item.dump
+  with_items:
+    - "{{ mysql.databases }}"
 
 - name: Ensure anonymous users are not in the database
   mysql_user: name='' host={{ item }} state=absent login_user=root login_password={{ mysql.root_password }}
@@ -38,4 +43,7 @@
     - "{{ current_hostname.stdout | lower }}"
 
 - name: Create users
-  mysql_user: name={{ mysql.user }} password={{ mysql.password }} priv={{ mysql.database }}.*:ALL state=present login_user=root login_password={{ mysql.root_password }}
+  mysql_user: name={{ mysql.user }} password={{ mysql.password }} priv={{ item.database }}.*:ALL state=present login_user=root login_password={{ mysql.root_password }}
+  when: item.database is defined
+  with_items:
+    - "{{ mysql.databases }}"
