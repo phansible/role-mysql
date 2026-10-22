@@ -50,6 +50,10 @@
       - python3-pymysql
     state: latest
 
+- name: Ensure MySQL is running
+  become: yes
+  service: name=mysql state=started enabled=yes
+
 # MySQL 8.4 does not load mysql_native_password; a fixed salt keeps the caching_sha2_password hash comparable between runs
 - name: Update root password for all root accounts
   become: yes
