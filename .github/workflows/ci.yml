@@ -56,6 +56,3 @@ jobs:
       - name: Check to make sure we can connect to MySQL via TCP
         run: docker exec test mysql -u root -proot -h 127.0.0.1 -e 'show databases;' | grep -q performance_schema
 
-      - name: Show MySQL logs on failure
-        if: failure()
-        run: docker exec test sh -c 'systemctl status mysql --no-pager; journalctl -u mysql --no-pager | tail -50; ls -la /var/run/mysqld; tail -50 /var/log/mysql/error.log'
