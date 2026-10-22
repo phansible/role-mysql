@@ -4,38 +4,114 @@
   changed_when: false
   register: current_hostname
 
-- name: Ensure packages database is up to date
+- name: Install repository prerequisites
   become: yes
-  apt: update_cache=yes cache_valid_time=3600
+  apt:
+    pkg: ca-certificates
+    update_cache: yes
+    cache_valid_time: 3600
 
+- name: Ensure apt keyrings directory exists
+  become: yes
+  file: path=/etc/apt/keyrings state=directory mode=0755
+
+- name: Add MySQL repository key
+  become: yes
+  get_url:
+    url: https://repo.mysql.com/RPM-GPG-KEY-mysql-2025
+    dest: /etc/apt/keyrings/mysql.asc
+    mode: '0644'
+    force: no
+
+# Debian ships MariaDB only, so Oracle's repo is the one source of MySQL on every target
+- name: Add MySQL repository
+  become: yes
+  deb822_repository:
+    name: mysql
+    uris: "https://repo.mysql.com/apt/{{ ansible_facts.distribution | lower }}/"
+    suites: "{{ ansible_facts.distribution_release }}"
+    components: mysql-8.4-lts
+    signed_by: /etc/apt/keyrings/mysql.asc
+    install_python_debian: yes
+  register: mysql_repo
+
+- name: Update packages database for the MySQL repository
+  become: yes
+  apt: update_cache=yes
+  when: mysql_repo is changed
+
+# community package names, so a newer distro mysql-server can never win over Oracle's
 - name: Install MySQL Packages
   become: yes
-  apt: pkg={{ item }} state=latest
-  with_items:
-    - mysql-server
-    - mysql-client
-    - python-mysqldb
+  apt:
+    pkg:
+      - mysql-community-server
+      - mysql-community-client
+      - python3-pymysql
+    state: latest
 
+# MySQL 8.4 does not load mysql_native_password; a fixed salt keeps the caching_sha2_password hash comparable between runs
 - name: Update root password for all root accounts
-  mysql_user: name=root host={{ item }} check_implicit_admin=yes password={{ mysql.root_password }} login_user=root login_password={{ mysql.root_password }}
-  with_items:
+  become: yes
+  ansible.mysql.mysql_user:
+    name: root
+    host: "{{ item }}"
+    plugin: caching_sha2_password
+    plugin_auth_string: "{{ mysql.root_password }}"
+    salt: "{{ (('root@' ~ item) | hash('sha1'))[:20] }}"
+    priv: "{{ omit if item == 'localhost' else '*.*:ALL,GRANT' }}"
+    check_implicit_admin: yes
+    login_user: root
+    login_password: "{{ mysql.root_password }}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  loop:
     - "{{ current_hostname.stdout | lower }}"
     - 127.0.0.1
     - ::1
     - localhost
 
 - name: Create databases
-  mysql_db: name={{ mysql.database }} state=present login_user=root login_password={{ mysql.root_password }}
+  become: yes
+  ansible.mysql.mysql_db:
+    name: "{{ mysql.database }}"
+    state: present
+    login_user: root
+    login_password: "{{ mysql.root_password }}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
 
 - name: Import dump
-  mysql_db: name={{ mysql.database }} state=import login_user=root login_password={{ mysql.root_password }} target=/vagrant/{{ mysql.dump }}
-  when: mysql.dump
+  become: yes
+  ansible.mysql.mysql_db:
+    name: "{{ mysql.database }}"
+    state: import
+    target: "/vagrant/{{ mysql.dump }}"
+    login_user: root
+    login_password: "{{ mysql.root_password }}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  when: mysql.dump | length > 0
 
 - name: Ensure anonymous users are not in the database
-  mysql_user: name='' host={{ item }} state=absent login_user=root login_password={{ mysql.root_password }}
-  with_items:
+  become: yes
+  ansible.mysql.mysql_user:
+    name: ''
+    host: "{{ item }}"
+    state: absent
+    login_user: root
+    login_password: "{{ mysql.root_password }}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  loop:
     - localhost
     - "{{ current_hostname.stdout | lower }}"
 
 - name: Create users
-  mysql_user: name={{ mysql.user }} password={{ mysql.password }} priv={{ mysql.database }}.*:ALL state=present login_user=root login_password={{ mysql.root_password }}
+  become: yes
+  ansible.mysql.mysql_user:
+    name: "{{ mysql.user }}"
+    plugin: caching_sha2_password
+    plugin_auth_string: "{{ mysql.password }}"
+    salt: "{{ ((mysql.user ~ '@localhost') | hash('sha1'))[:20] }}"
+    priv: "{{ mysql.database }}.*:ALL"
+    state: present
+    login_user: root
+    login_password: "{{ mysql.root_password }}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
